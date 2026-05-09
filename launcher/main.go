@@ -12,6 +12,7 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"github.com/tetratelabs/wazero/sys"
 )
 
 // GameRegistry represents the structure of your github-hosted registry.json
@@ -31,7 +32,7 @@ const DefaultRegistryURL = "http://localhost:8080/registry.json"
 
 func main() {
 	if len(os.Args) < 2 {
-		printHelp()
+		interactiveSelect()
 		return
 	}
 
@@ -69,7 +70,12 @@ func fetchRegistry() (*GameRegistry, error) {
 
 	// Fallback to local file for easy prototyping
 	if strings.HasPrefix(registryURL, "http://localhost") {
-		data, err := os.ReadFile("../registry.json")
+		ex, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		regPath := filepath.Join(filepath.Dir(ex), "..", "registry.json")
+		data, err := os.ReadFile(regPath)
 		if err != nil {
 			return nil, fmt.Errorf("local registry.json not found: %v", err)
 		}
@@ -103,6 +109,45 @@ func listGames() {
 		fmt.Printf("📦 %s (by %s)\n", id, game.Author)
 		fmt.Printf("   %s\n\n", game.Description)
 	}
+}
+
+func interactiveSelect() {
+	registry, err := fetchRegistry()
+	if err != nil {
+		fmt.Printf("Error fetching registry: %v\n", err)
+		return
+	}
+
+	fmt.Println("🎮 PLAY CLI - Game Menu")
+	fmt.Println("---------------------------------------------------")
+	
+	var gameIDs []string
+	for id := range registry.Games {
+		gameIDs = append(gameIDs, id)
+	}
+
+	for i, id := range gameIDs {
+		game := registry.Games[id]
+		fmt.Printf("[%d] %s (by %s) - %s\n", i+1, game.Name, game.Author, game.Description)
+	}
+	fmt.Println("---------------------------------------------------")
+	fmt.Print("Select a game to play (or 'q' to quit): ")
+
+	var input string
+	fmt.Scanln(&input)
+
+	if input == "q" || input == "Q" {
+		return
+	}
+
+	var choice int
+	_, err = fmt.Sscanf(input, "%d", &choice)
+	if err != nil || choice < 1 || choice > len(gameIDs) {
+		fmt.Println("Invalid selection.")
+		return
+	}
+
+	playGame(gameIDs[choice-1])
 }
 
 func playGame(gameID string) {
@@ -162,7 +207,7 @@ func playGame(gameID string) {
 	_, err = r.InstantiateWithConfig(ctx, wasmBytes, config)
 	if err != nil {
 		// WASI exits trigger an error in wazero, we filter out normal exits (code 0)
-		if exitErr, ok := err.(*wazero.SysExitError); ok && exitErr.ExitCode() == 0 {
+		if exitErr, ok := err.(*sys.ExitError); ok && exitErr.ExitCode() == 0 {
 			// Clean exit
 		} else {
 			fmt.Printf("\nGame exited with error: %v\n", err)
@@ -171,12 +216,18 @@ func playGame(gameID string) {
 	fmt.Println("\n--- Game Over ---")
 }
 
-func downloadFile(filepath string, url string) error {
+func downloadFile(destPath string, url string) error {
 	// For local file simulation
 	if strings.HasPrefix(url, "file://") {
-		input, err := os.ReadFile(strings.TrimPrefix(url, "file://"))
+		localPath := strings.TrimPrefix(url, "file://")
+		ex, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		absPath := filepath.Join(filepath.Dir(ex), localPath)
+		input, err := os.ReadFile(absPath)
 		if err != nil { return err }
-		return os.WriteFile(filepath, input, 0644)
+		return os.WriteFile(destPath, input, 0644)
 	}
 
 	resp, err := http.Get(url)
@@ -185,7 +236,7 @@ func downloadFile(filepath string, url string) error {
 	}
 	defer resp.Body.Close()
 
-	out, err := os.Create(filepath)
+	out, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
