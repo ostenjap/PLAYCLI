@@ -1,0 +1,10 @@
+{
+  "games": {
+    "guess": {
+      "name": "Number Guesser",
+      "author": "Indie Hacker",
+      "description": "A fun game where you guess a number between 1 and 100.",
+      "wasm_url": "file://../example-game/guess.wasm"
+    }
+  }
+}
