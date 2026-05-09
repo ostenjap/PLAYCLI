@@ -5,6 +5,12 @@
       "author": "Indie Hacker",
       "description": "A fun game where you guess a number between 1 and 100.",
       "wasm_url": "file://../example-game/guess.wasm"
+    },
+    "pinball": {
+      "name": "Miami Pinball",
+      "author": "Vibe Coder",
+      "description": "Neon-soaked physics pinball. Don't let the ball drop!",
+      "wasm_url": "file://../games/pinball/pinball.wasm"
     }
   }
 }
